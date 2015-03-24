@@ -1,0 +1,25 @@
+### Flash "static" firmware
+cd /opt/R2P/workspace/USB_module
+make MAIN=bootloader_test
+->flash
+
+### Load app
+cd /opt/R2P/workspace/USB_module/apps/pub_led
+make BOARD=../.. load
+
+### Reboot
+make BOARD=../../ reboot
+
+### Get app info
+make BOARD=../../ getappinfo
+
+### Get parameter value
+make BOARD=../../ getparam PARAM_OFFSET=24 PARAM_LENGTH=4
+
+### Set parameter value
+make BOARD=../../ setparam PARAM_OFFSET=24 PARAM_BYTES=000000c8
+
+### LED Behavior
+- toggles evey 100ms -> bootloader mode
+- toggles evey 2000ms -> run mode without any publisher
+- toggles evey 500ms -> run mode with LED publisher
