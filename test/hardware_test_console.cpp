@@ -20,22 +20,20 @@
 #define R2T(r) ((r / (2 * _PI)) * (_TICKS * _RATIO))
 #define T2R(t) ((t / (_TICKS * _RATIO)) * (2 * _PI))
 
-#ifndef R2P_MODULE_NAME
-#define R2P_MODULE_NAME "USB"
-#endif
-
-
-
 static WORKING_AREA(wa_info, 1024);
 static r2p::RTCANTransport rtcantra(RTCAND1);
 
 RTCANConfig rtcan_config = { 1000000, 100, 60 };
 
-r2p::Middleware r2p::Middleware::instance(R2P_MODULE_NAME, "BOOT_"R2P_MODULE_NAME);
+r2p::Middleware r2p::Middleware::instance(MODULE_NAME, "BOOT_"MODULE_NAME);
 
 
 msg_t udc_test_node(void * arg);
 msg_t imu_test_node(void * arg);
+msg_t imuraw_test_node(void * arg);
+msg_t servo_test_node(void * arg);
+
+bool imu_raw = false;
 
 bool enc_callback(const r2p::EncoderMsg &msg);
 r2p::Node node("udc_test", false);
@@ -126,17 +124,47 @@ static void cmd_imu_test(BaseSequentialStream *chp, int argc, char *argv[]) {
 		return;
 	}
 
+	imu_raw = false;
 	tp = chThdCreateFromHeap(NULL, THD_WA_SIZE(2048), NORMALPRIO, imu_test_node, chp);
 	chThdWait(tp);
 
 }
 
-static const ShellCommand commands[] = { { "mem", cmd_mem }, { "threads", cmd_threads }, { "udc", cmd_udc_test}, { "imu", cmd_imu_test}, { NULL, NULL } };
+static void cmd_imuraw_test(BaseSequentialStream *chp, int argc, char *argv[]) {
+	Thread * tp;
+
+	(void) argv;
+
+	if (argc > 0) {
+		chprintf(chp, "Usage: imuraw\r\n");
+		return;
+	}
+
+	imu_raw = true;
+	tp = chThdCreateFromHeap(NULL, THD_WA_SIZE(2048), NORMALPRIO, imu_test_node, chp);
+	chThdWait(tp);
+
+}
+
+static void cmd_servo_test(BaseSequentialStream *chp, int argc, char *argv[]) {
+	Thread * tp;
+
+	(void) argv;
+
+	if (argc > 0) {
+		chprintf(chp, "Usage: servo\r\n");
+		return;
+	}
+
+	imu_raw = true;
+	tp = chThdCreateFromHeap(NULL, THD_WA_SIZE(2048), NORMALPRIO, servo_test_node, chp);
+	chThdWait(tp);
+
+}
+
+static const ShellCommand commands[] = { { "mem", cmd_mem }, { "threads", cmd_threads }, { "udc", cmd_udc_test}, { "imu", cmd_imu_test}, { "imuraw", cmd_imuraw_test}, { "servo", cmd_servo_test}, { NULL, NULL } };
 
 static const ShellConfig usb_shell_cfg = { (BaseSequentialStream *) &SDU1, commands };
-
-static const ShellConfig serial_shell_cfg = { (BaseSequentialStream *) &SD3, commands };
-
 
 /*
  * uDC test node.
@@ -203,25 +231,25 @@ msg_t imu_test_node(void * arg) {
 	BaseSequentialStream * chp = reinterpret_cast<BaseSequentialStream *>(arg);
 	r2p::Node node("tilt_sub");
 	r2p::Subscriber<r2p::IMUMsg, 5> imu_sub;
-	r2p::Subscriber<r2p::IMURaw9, 5> imuraw_sub;
 	r2p::IMUMsg * msgp;
+	r2p::Subscriber<r2p::IMURaw9, 5> imuraw_sub;
 	r2p::IMURaw9 * rawmsgp;
 
 	(void) arg;
 	chRegSetThreadName("imu_test");
 
-//	node.subscribe(imu_sub, "imu");
+	node.subscribe(imu_sub, "imu");
 	node.subscribe(imuraw_sub, "imu_raw");
 
-	for (;;) {
+	while (!chThdShouldTerminate()) {
 		node.spin(r2p::Time::ms(1000));
 		r2p::Thread::sleep(r2p::Time::ms(100));
-		if (imu_sub.fetch(msgp)) {
+		if (imu_raw && imuraw_sub.fetch(rawmsgp)) {
+			chprintf(chp, "%5d %5d %5d %5d %5d %5d %5d %5d %5d\r\n", rawmsgp->acc_x, rawmsgp->acc_y, rawmsgp->acc_z, rawmsgp->gyro_x, rawmsgp->gyro_y, rawmsgp->gyro_z, rawmsgp->mag_x, rawmsgp->mag_y, rawmsgp->mag_z);
+			imuraw_sub.release(*rawmsgp);
+		}else if (!imu_raw && imu_sub.fetch(msgp)) {
 			chprintf(chp, "%f %f %f\r\n", msgp->roll, msgp->pitch, msgp->yaw);
 			imu_sub.release(*msgp);
-		} else if (imuraw_sub.fetch(rawmsgp)) {
-				chprintf(chp, "%5d %5d %5d %5d %5d %5d %5d %5d %5d\r\n", rawmsgp->acc_x, rawmsgp->acc_y, rawmsgp->acc_z, rawmsgp->gyro_x, rawmsgp->gyro_y, rawmsgp->gyro_z, rawmsgp->mag_x, rawmsgp->mag_y, rawmsgp->mag_z);
-				imuraw_sub.release(*rawmsgp);
 		} else {
 			chprintf(chp, "Timeout\r\n");
 		}
@@ -230,6 +258,34 @@ msg_t imu_test_node(void * arg) {
 	return CH_SUCCESS;
 }
 
+
+/*
+ * Servo test node.
+ */
+msg_t servo_test_node(void * arg) {
+	BaseSequentialStream * chp = reinterpret_cast<BaseSequentialStream *>(arg);
+	r2p::Node node("servo_sub");
+	r2p::Subscriber<r2p::ServoMsg, 5> servo_sub;
+	r2p::ServoMsg * msgp;
+
+	(void) arg;
+	chRegSetThreadName("servo_test");
+
+	node.subscribe(servo_sub, "rcin");
+
+	while (!chThdShouldTerminate()) {
+		node.spin(r2p::Time::ms(1000));
+		r2p::Thread::sleep(r2p::Time::ms(100));
+		if (servo_sub.fetch(msgp)) {
+			chprintf(chp, "%4d %4d %4d %4d %4d %4d %4d %4d \r\n", msgp->pulse[0],  msgp->pulse[1],  msgp->pulse[2],  msgp->pulse[3],  msgp->pulse[4],  msgp->pulse[5],  msgp->pulse[6],  msgp->pulse[7]);
+			servo_sub.release(*msgp);
+		} else {
+			chprintf(chp, "Timeout\r\n");
+		}
+	}
+
+	return CH_SUCCESS;
+}
 
 /*
  * Test node.
@@ -261,7 +317,6 @@ msg_t test_sub_node(void * arg) {
 extern "C" {
 int main(void) {
 	Thread *usb_shelltp = NULL;
-	Thread *serial_shelltp = NULL;
 
 	halInit();
 	chSysInit();
@@ -282,9 +337,6 @@ int main(void) {
 	usbStart(serusbcfg.usbp, &usbcfg);
 	usbConnectBus(serusbcfg.usbp);
 
-	/* Start the serial driver. */
-	sdStart(&SD3, NULL);
-
 	/*
 	 * Shell manager initialization.
 	 */
@@ -300,7 +352,7 @@ int main(void) {
 	r2p::ledsub_conf ledsub_conf = {"led"};
 	r2p::Thread::create_heap(NULL, THD_WA_SIZE(512), NORMALPRIO, r2p::ledsub_node, &ledsub_conf);
 
-	r2p::Thread::create_heap(NULL, THD_WA_SIZE(512), NORMALPRIO, test_sub_node, NULL);
+	r2p::Thread::create_heap(NULL, THD_WA_SIZE(1024), NORMALPRIO, test_sub_node, NULL);
 
 	for (;;) {
 		if (!usb_shelltp && (SDU1.config->usbp->state == USB_ACTIVE)) {
@@ -309,14 +361,6 @@ int main(void) {
 			chThdRelease(usb_shelltp); /* Recovers memory of the previous shell.   */
 			usb_shelltp = NULL; /* Triggers spawning of a new shell.        */
 		}
-/*
-		if (!serial_shelltp)
-			serial_shelltp = shellCreate(&serial_shell_cfg, SHELL_WA_SIZE, NORMALPRIO);
-		else if (chThdTerminated(serial_shelltp)) {
-			chThdRelease(serial_shelltp);
-			serial_shelltp = NULL;
-		}
-*/
 		r2p::Thread::sleep(r2p::Time::ms(500));
 	}
 

@@ -51,6 +51,10 @@
 /*
  * IO pins assignments.
  */
+
+#define LED_GPIO	GPIOC
+#define LED_PIN		13
+
 #define GPIOA_PIN0                  0
 #define GPIOA_PIN1                  1
 #define GPIOA_PIN2                  2
@@ -153,14 +157,6 @@
 #define GPIOF_PIN14                 14
 #define GPIOF_PIN15                 15
 
-#define LED1_GPIO	GPIOC
-#define LED2_GPIO	GPIOC
-#define LED3_GPIO	GPIOC
-#define LED4_GPIO	GPIOC
-#define LED1		13
-#define LED2		13
-#define LED3		13
-#define LED4		13
 
 /*
  * I/O ports initial setup, this configuration is established soon after reset

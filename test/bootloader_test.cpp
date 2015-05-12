@@ -24,16 +24,25 @@
 #define RTCAN_TRANSPORT		0
 #endif
 
+#ifndef R2P_USE_BRIDGE_MODE
+#define R2P_USE_BRIDGE_MODE		1
+#endif
+
 static WORKING_AREA(wa_info, 1024);
 #define BOOT_STACKLEN   1024
+
+#if R2P_USE_BRIDGE_MODE
+enum { PUBSUB_BUFFER_LENGTH = 16 };
+r2p::Middleware::PubSubStep pubsub_buf[PUBSUB_BUFFER_LENGTH];
+#endif
 
 #if DEBUG_TRANSPORT
 static char dbgtra_namebuf[64];
 #if SERIAL_USB
-static r2p::DebugTransport dbgtra("SD2", reinterpret_cast<BaseChannel *>(&SDU1),
+static r2p::DebugTransport dbgtra("SDU1", reinterpret_cast<BaseChannel *>(&SDU1),
 		dbgtra_namebuf);
 #else
-static r2p::DebugTransport dbgtra("SD2", reinterpret_cast<BaseChannel *>(&SD3),
+static r2p::DebugTransport dbgtra("SD3", reinterpret_cast<BaseChannel *>(&SD3),
 		dbgtra_namebuf);
 #endif
 
@@ -147,13 +156,10 @@ int main(void) {
 	r2p::Thread::create_heap(NULL, THD_WA_SIZE(512), NORMALPRIO, r2p::ledsub_node, &ledsub_conf);
 
 	for (;;) {
-		palTogglePad(LED1_GPIO, LED1);
 		if (r2p::Middleware::is_bootloader_mode()) {
-			r2p::Thread::sleep(r2p::Time::ms(100));
-
-		} else {
-			r2p::Thread::sleep(r2p::Time::ms(2000));
+			palTogglePad(LED1_GPIO, LED1);
 		}
+		r2p::Thread::sleep(r2p::Time::ms(100));
 	}
 
 	return CH_SUCCESS;

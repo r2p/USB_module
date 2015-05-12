@@ -223,7 +223,7 @@ static const ShellCommand commands[] = { { "mem", cmd_mem }, { "threads", cmd_th
 
 static const ShellConfig usb_shell_cfg = { (BaseSequentialStream *) &SDU1, commands };
 
-static const ShellConfig serial_shell_cfg = { (BaseSequentialStream *) &SD3, commands };
+//static const ShellConfig serial_shell_cfg = { (BaseSequentialStream *) &SD3, commands };
 
 
 /*
@@ -341,7 +341,7 @@ int main(void) {
 	usbConnectBus(serusbcfg.usbp);
 
 	/* Start the serial driver. */
-	sdStart(&SD3, NULL);
+//	sdStart(&SD3, NULL);
 
 	/*
 	 * Shell manager initialization.
