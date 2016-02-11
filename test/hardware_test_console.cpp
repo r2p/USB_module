@@ -31,6 +31,7 @@ r2p::Middleware r2p::Middleware::instance(MODULE_NAME, "BOOT_"MODULE_NAME);
 msg_t udc_test_node(void * arg);
 msg_t imu_test_node(void * arg);
 msg_t imuraw_test_node(void * arg);
+msg_t gps_test_node(void * arg);
 msg_t servo_test_node(void * arg);
 
 bool imu_raw = false;
@@ -146,6 +147,21 @@ static void cmd_imuraw_test(BaseSequentialStream *chp, int argc, char *argv[]) {
 
 }
 
+static void cmd_gps_test(BaseSequentialStream *chp, int argc, char *argv[]) {
+	Thread * tp;
+
+	(void) argv;
+
+	if (argc > 0) {
+		chprintf(chp, "Usage: gps\r\n");
+		return;
+	}
+
+	tp = chThdCreateFromHeap(NULL, THD_WA_SIZE(2048), NORMALPRIO, gps_test_node, chp);
+	chThdWait(tp);
+
+}
+
 static void cmd_servo_test(BaseSequentialStream *chp, int argc, char *argv[]) {
 	Thread * tp;
 
@@ -156,13 +172,12 @@ static void cmd_servo_test(BaseSequentialStream *chp, int argc, char *argv[]) {
 		return;
 	}
 
-	imu_raw = true;
 	tp = chThdCreateFromHeap(NULL, THD_WA_SIZE(2048), NORMALPRIO, servo_test_node, chp);
 	chThdWait(tp);
 
 }
 
-static const ShellCommand commands[] = { { "mem", cmd_mem }, { "threads", cmd_threads }, { "udc", cmd_udc_test}, { "imu", cmd_imu_test}, { "imuraw", cmd_imuraw_test}, { "servo", cmd_servo_test}, { NULL, NULL } };
+static const ShellCommand commands[] = { { "mem", cmd_mem }, { "threads", cmd_threads }, { "udc", cmd_udc_test}, { "imu", cmd_imu_test}, { "imuraw", cmd_imuraw_test}, { "gps", cmd_gps_test}, { "servo", cmd_servo_test}, { NULL, NULL } };
 
 static const ShellConfig usb_shell_cfg = { (BaseSequentialStream *) &SDU1, commands };
 
@@ -258,6 +273,32 @@ msg_t imu_test_node(void * arg) {
 	return CH_SUCCESS;
 }
 
+/*
+ * GPS test node.
+ */
+msg_t gps_test_node(void * arg) {
+	BaseSequentialStream * chp = reinterpret_cast<BaseSequentialStream *>(arg);
+	r2p::Node node("gps_test");
+	r2p::Subscriber<r2p::GPSMsg, 5> gps_sub;
+	r2p::GPSMsg * msgp;
+
+	(void) arg;
+	chRegSetThreadName("gps_test");
+
+	node.subscribe(gps_sub, "gps");
+
+	while (!chThdShouldTerminate()) {
+		node.spin(r2p::Time::ms(2000));
+		if (gps_sub.fetch(msgp)) {
+			chprintf(chp, "%d %d %f %f\r\n", msgp->valid, msgp->satellites, msgp->latitude, msgp->longitude);
+			gps_sub.release(*msgp);
+		} else {
+			chprintf(chp, "Timeout\r\n");
+		}
+	}
+
+	return CH_SUCCESS;
+}
 
 /*
  * Servo test node.
