@@ -107,6 +107,7 @@ CSRC = $(PORTSRC) \
        $(CHIBIOS)/os/various/evtimer.c \
        $(CHIBIOS)/os/various/shell.c \
        $(CHIBIOS)/os/various/syscalls.c \
+       $(FATFSSRC) \
        $(RTCANSRC) \
        $(RTCANPLATFORMSRC) \
        $(MODULE_PATH)/board.c \
